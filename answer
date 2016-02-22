@@ -1,0 +1,31 @@
+目前的台式PC机标准配置和价格？
+
+你理解的命令行接口和GUI接口具有哪些共性和不同的特征？
+命令行接口和GUI接口都能使计算机完成相应指令。
+命令行接口简洁，节约系统资源，GUI接口需要占用更多资源，更注重人机交互。
+
+为什么现在的操作系统基本上用C语言来实现？
+因为操作系统所需要的编程语言需要跨平台，兼容性好，这方面C语言较好。
+
+为什么没有人用python，java来实现操作系统？
+python执行效率比较低，我认为java挺合适的啊,本身就是一个虚拟机结构,但是这是不对的，所以我也不清楚。。。
+
+请评价用C++来实现操作系统的利弊？
+
+v9-cpu
+
+cpu.md中有提到
+在TLB中，设置了4个1MB大小页转换表（page translation buffer array）
+ - kernel read page translation table
+ - kernel write page translation table
+ - user read page translation table
+ - user write page translation table
+
+有两个指针tr/tw, tw指向内核态或用户态的read/write　page translation table．
+tr/tw[page number]=phy page number //页帧号
+还有一个tpage buffer array, 保存了所有tr/tw中的虚页号，这些虚页号是tr/tw数组中的index 
+tpage[tpages++] = v //v是page number
+
+在em.c中首先会在tr表中虚页号寻找对应的页帧号，如果没有找到会在rlook函数中进行以下操作
+首先根据虚页号的前12位得到对应的page directory entry，然后根据这个page directory entry和虚页号的第13~22位来确定page table entry
+在page directory和page table中后面的12位用于记录当前状态。（wlook函数类似）
