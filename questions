@@ -1,0 +1,62 @@
+目前的台式PC机标准配置和价格？
+
+你理解的命令行接口和GUI接口具有哪些共性和不同的特征？
+命令行接口和GUI接口都能使计算机完成相应指令。
+命令行接口简洁，节约系统资源，GUI接口需要占用更多资源，更注重人机交互。
+
+为什么现在的操作系统基本上用C语言来实现？
+因为操作系统所需要的编程语言需要跨平台，兼容性好，速度快，这方面C语言较好。
+
+为什么没有人用python，java来实现操作系统？
+python和java执行效率比较低。
+
+请评价用C++来实现操作系统的利弊？
+
+v9-cpu
+在v9-cpu中如何实现时钟中断的
+TIME指令设置 timeout大小，每次计时器timer会加上一个定值delta，当计时器超过timeout时如果中断使能为1，进入中断
+
+v9-cpu指令，关键变量描述有误或不全的情况
+ - ssp: 核心态栈指针
+ - usp: 用户态栈指针
+ - cycle: 指令周期
+ - xcycle: 时钟周期
+ - timer: 计时器
+ - timeout: 超时阈值
+ -　detla: 一个周期时长
+
+在v9-cpu中的跳转相关操作是如何实现的；
+JMP/JMPI指令，在xpc后加上相关操作数即可
+JSR/JSRA指令，在栈中保存pc，再跳转
+BRANCH指令，先判断，然后再根据情况跳转
+需要注意的是后8位可能是指令编码。
+
+在v9-cpu中如何设计相应指令，可有效实现函数调用与返回；
+参数通过栈传递，pc的跳转可以通过JSR和JSRA指令完成
+
+emhello/os0/os1等程序被加载到内存的哪个位置,其堆栈是如何设置的；
+  if (read(f, (void*)mem, st.st_size - sizeof(hdr)) != st.st_size - sizeof(hdr)) { dprintf(2,"%s : failed to read file %sn", cmd, file); return -1; }
+  close(f);
+  加载到mem的开始位置
+  hdr为程序
+  pc = hdr.entry sp = memsz - FS_SZ
+  memsz可以为自己设定的值，也有一个默认值为MEM_SZ
+
+
+在v9-cpu中如何完成一次内存地址的读写的，在v9-cpu中如何实现分页机制
+这一问和后面一问内容类似，并在一起回答。
+cpu.md中有提到
+在TLB中，设置了4个1MB大小页转换表（page translation buffer array）
+ - kernel read page translation table
+ - kernel write page translation table
+ - user read page translation table
+ - user write page translation table
+
+有两个指针tr/tw, tw指向内核态或用户态的read/write　page translation table．
+tr/tw[page number]=phy page number //页帧号
+还有一个tpage buffer array, 保存了所有tr/tw中的虚页号，这些虚页号是tr/tw数组中的index 
+tpage[tpages++] = v //v是page number
+
+在em.c中首先会在tr表中虚页号寻找对应的页帧号，如果没有找到会在rlook函数中进行以下操作。如果paging打开，
+首先根据虚页号的前10位得到对应的page directory entry，然后根据这个page directory entry和虚页号的第11~20位来确定page table entry
+在page directory和page table中后面的12位用于记录当前状态，最后调用setpage对tr和tw修改。物理地址为地址+1（wlook函数类似）
