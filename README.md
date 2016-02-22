@@ -2,4 +2,5 @@
 @2/22 2016
 
 /Prog 
-  Program for week 1.
+
+  Programs for week 1.
