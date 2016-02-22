@@ -28,6 +28,7 @@ enum { // processor fault codes
   USER=16 // user mode exception 
 };
 
+
 char task0_stack[1000];
 char task0_kstack[1000];
 
@@ -37,11 +38,49 @@ char task1_kstack[1000];
 int *task0_sp;
 int *task1_sp;
 
+
 char pg_mem[6 * 4096]; // page dir + 4 entries + alignment
 
 int *pg_dir, *pg0, *pg1, *pg2, *pg3;
 
 int current;
+
+task0()
+{
+  // while(current < 1)
+  //   write(1, "00", 2);
+
+  write(1,"task0 exit\n", 11);
+  halt(0);
+}
+
+task1()
+{
+  // while(current < 10)
+    // write(1, "11", 2);
+
+  write(1,"task1 exit\n", 11);
+  halt(0);
+}
+
+swtch(int *old, int new) // switch stacks
+{
+  asm(LEA, 0); // a = sp
+  asm(LBL, 8); // b = old
+  asm(SX, 0);  // *b = a
+  asm(LL, 16); // a = new
+  asm(SSP);    // sp = a
+}
+
+trapret()
+{
+  asm(POPA); asm(SUSP);
+  asm(POPC);
+  asm(POPB);
+  asm(POPA);
+  asm(RTI);
+}
+
 
 int in(port)    { asm(LL,8); asm(BIN); }
 out(port, val)  { asm(LL,8); asm(LBL,16); asm(BOUT); }
@@ -99,36 +138,21 @@ int vsprintf(char *s, char *f, va_list v)
 
 int printf(char *f) { static char buf[4096]; return write(1, buf, vsprintf(buf, f, &f)); } // XXX remove static from buf
 
-int save(port)
-{
-  // asm(SL,16);
-  // asm(LBL,16);
-  // asm(LL,8);
-  // asm(BOUT);
-  asm(PSHA);
-  asm(POPB);
-  asm(LL,8);
-  asm(BOUT);
-}
-
 trap(int c, int b, int a, int fc, int pc)
 {
   printf("TRAP: ");
   switch (fc) {
-  case FSYS + USER: printf("FSYS + USER"); break;
-  case FPRIV: printf("FPRIV"); break;
   case FINST:  printf("FINST"); break;
   case FRPAGE: printf("FRPAGE [0x%08x]",lvadr()); break;
   case FWPAGE: printf("FWPAGE [0x%08x]",lvadr()); break;
   case FIPAGE: printf("FIPAGE [0x%08x]",lvadr()); break;
   case FSYS:   printf("FSYS"); break;
   case FARITH: printf("FARITH"); break;
-  case FMEM:   printf("FMEM [0x%08x]\n",lvadr()); break;
+  case FMEM:   printf("FMEM [0x%08x]",lvadr()); break;
   case FTIMER: printf("FTIMER"); current = 1; stmr(0); break;
-  case FKEYBD: //printf("FKEYBD [%c]", in(0)); 
-      in(0);save(1);
-      break;
-  
+  case FKEYBD: printf("FKEYBD [%c]", in(0)); break;
+  case FPRIV:  printf("FPRIV");break;
+  case FPRIV+USER:  printf("FPRIV+USER");break;
   default:     printf("other [%d]",fc); break;
   }
 }
@@ -138,23 +162,7 @@ alltraps()
   asm(PSHA);
   asm(PSHB);
   asm(PSHC);
-  // asm(LUSP); asm(PSHA);
   trap();
-  // asm(POPA); asm(SUSP);
-  asm(POPC);
-  asm(POPB);
-  asm(POPA);
-  asm(RTI);
-}
-
-usertraps()
-{
-  asm(PSHA);
-  asm(PSHB);
-  asm(PSHC);
-  asm(LUSP); asm(PSHA);
-  trap();
-  asm(POPA); asm(SUSP);
   asm(POPC);
   asm(POPB);
   asm(POPA);
@@ -183,46 +191,12 @@ setup_paging()
   spage(1);
 }
 
-task0()
-{
-  while(current < 1)
-    write(1, "00", 2);
-
-  write(1,"task0 exit\n", 11);
-  halt(0);
-}
-
-task1()
-{
-  while(current < 10)
-    write(1, "11", 2);
-
-  write(1,"task1 exit\n", 11);
-  halt(0);
-}
-
-swtch(int *old, int new) // switch stacks
-{
-  asm(LEA, 0); // a = sp
-  asm(LBL, 8); // b = old
-  asm(SX, 0);  // *b = a
-  asm(LL, 16); // a = new
-  asm(SSP);    // sp = a
-}
-
-trapret()
-{
-  asm(POPA); asm(SUSP);
-  asm(POPC);
-  asm(POPB);
-  asm(POPA);
-  asm(RTI);
-}
-
 main()
 {
-  int t, d,addr; 
+  int t, d; 
+  
   int *kstack;
+
   current = 0;
   ivec(alltraps);
   
@@ -230,8 +204,7 @@ main()
   
   printf("test timer...");
   t = 0;
-  addr = 0x0;
-  stmr(5000);
+  stmr(10000);
   while (!current) t++;
   printf("(t=%d)...ok\n",t);
   
@@ -269,34 +242,28 @@ main()
   asm(TRAP);
   printf("...ok\n");
 
-  // asm(CLI);
-  // asm(STI);
-  // ivec(usertraps);
-  // task0_sp = &task0_kstack[1000];
-  // task0_sp -= 2; *task0_sp = &task0;
-  // task0_sp -= 2; *task0_sp = USER; // fault code
-  // task0_sp -= 2; *task0_sp = 0; // a
-  // task0_sp -= 2; *task0_sp = 0; // b
-  // task0_sp -= 2; *task0_sp = 0; // c
-  // task0_sp -= 2; *task0_sp = &task0_stack[1000];
-  // task0_sp -= 2; *task0_sp = &trapret;  
+  task0_sp = &task0_kstack[1000];
+  task0_sp -= 2; *task0_sp = &task0;
+  task0_sp -= 2; *task0_sp = USER; // fault code
+  task0_sp -= 2; *task0_sp = 0; // a
+  task0_sp -= 2; *task0_sp = 0; // b
+  task0_sp -= 2; *task0_sp = 0; // c
+  task0_sp -= 2; *task0_sp = &task0_stack[1000];
+  task0_sp -= 2; *task0_sp = &trapret;  
   
-  // task1_sp = &task1_kstack[1000];
-  // task1_sp -= 2; *task1_sp = &task1;
-  // task1_sp -= 2; *task1_sp = USER; // fault code
-  // task1_sp -= 2; *task1_sp = 0; // a
-  // task1_sp -= 2; *task1_sp = 0; // b
-  // task1_sp -= 2; *task1_sp = 0; // c
-  // task1_sp -= 2; *task1_sp = &task1_stack[1000];
-  // task1_sp -= 2; *task1_sp = &trapret;
+  task1_sp = &task1_kstack[1000];
+  task1_sp -= 2; *task1_sp = &task1;
+  task1_sp -= 2; *task1_sp = USER; // fault code
+  task1_sp -= 2; *task1_sp = 0; // a
+  task1_sp -= 2; *task1_sp = 0; // b
+  task1_sp -= 2; *task1_sp = 0; // c
+  task1_sp -= 2; *task1_sp = &task1_stack[1000];
+  task1_sp -= 2; *task1_sp = &trapret;
 
-  // kstack = task0_sp;
+  kstack = task0_sp;
   
-  // asm(LL, 4); // a = kstack
-  // asm(SSP);   // sp = a
-  // asm(LEV);
-
-  // asm(IDLE);
-  // while(1);
+  asm(LL, 4); // a = kstack
+  asm(SSP);   // sp = a
+  asm(LEV);
   halt(0);
 }
